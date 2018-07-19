@@ -42,6 +42,20 @@ def load_adult():
         y = np.array(y)
     return X, y
 
+def load_covtype():
+    with open('datasets/covtype.data', 'rb') as f:
+        X = []
+        y = []
+        reader = csv.reader(f, delimiter = ',', quoting=csv.QUOTE_NONNUMERIC)
+        for row in reader:
+            X.append(row[:-1])
+            y.append(row[-1])
+
+    X = np.matrix(X)
+    y = np.array(y)
+
+    return X, y
+
 def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C):
     timing = False
     if timing:
@@ -50,7 +64,7 @@ def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_tes
         n_seeds = 50
     
     if data_name == 'adult':
-        n_rffs = [4, 8, 12, 16, 20] + range(0, 256 + 1, 24)
+        n_rffs = [4, 8, 12, 16, 20] + range(24, 256 + 1, 24)
 
     for algo_name, feature_gen_handle in algos.items():
         errors = defaultdict(list)
@@ -60,7 +74,7 @@ def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_tes
             start_time = time.clock()
             for seed in range(n_seeds):
                 y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda raw_feature: feature_gen_handle(raw_feature, n_rff, seed))
-                errors[n_rff][seed] = np.mean(np.abs(y_test - y_test_fit))
+                errors[n_rff][seed] = np.mean(np.abs(y_test_fit != y_test))
             errors['runtimes'][n_rff] = (time.clock() - start_time) / n_seeds
             print('{} {} \t{} \t{:.4}sec'.format(algo_name, n_rff, np.mean(errors[n_rff]), errors['runtimes'][n_rff]))
     
@@ -94,7 +108,7 @@ def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, 
         y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
     errors['runtimes'][n_rffs[0]] = (time.clock() - start_time) / n_trials
     errors['runtimes'][n_rffs[-1]] = errors['runtimes'][n_rffs[0]]
-    errors[n_rffs[0]] = np.mean(np.abs(y_test - y_test_fit))
+    errors[n_rffs[0]] = np.mean(np.abs(y_test_fit != y_test))
     errors[n_rffs[-1]] = errors[n_rffs[0]]
     print '{} \t{} \t{:.4}sec'.format('SE kernel', errors[n_rffs[0]], errors['runtimes'][n_rffs[0]])
     if n_trials > 1:
@@ -130,7 +144,7 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
     plt.yticks(yticks_spacing * np.arange(yticks_lim_integer[0], 1 + yticks_lim_integer[1]))
     plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
 
-    xticks_spacing = 12
+    xticks_spacing = 24
     xticks_lim = [(int(min(plt.xticks()[0]) / xticks_spacing) + 1) * xticks_spacing, int(max(plt.xticks()[0]) / xticks_spacing) * xticks_spacing]
     xticks_lim[0] = max(xticks_lim[0], 0)
     plt.xticks(range(xticks_lim[0], xticks_lim[1]+1, xticks_spacing))
@@ -144,28 +158,35 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
 def main():
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-    data_name = 'adult'
+    data_name = ['adult', 'covtype'][0]
     if data_name == 'adult':
         X, y = load_adult()
+    elif data_name == 'covtype':
+        X, y = load_covtype()
     print(data_name, len(y), np.mean(y))
     X = whiten_data(X)[0]
-    np.random.seed(0)
+    np.random.seed(2)
     X_train, y_train, X_test, y_test = split_data(X, y, 0.8) 
     
-    scale = 4.0
-    C = 1.0
+    if data_name == 'adult':
+        scale = 4.0
+        C = 1.0
+    elif data_name == 'covtype':
+        scale = 20.0
+        C = 1.0
 
     keys = ['iid', 'ort', 'iid_fix_norm', 'ort_fix_norm', 'ort_weighted', 'HD_1', 'HD_3', 'HD_1_fix_norm', 'HD_3_fix_norm']
     algos = algos_generator(keys, scale = scale)
 
     # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = scale)
-    classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
+    # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
+    # keys = ['iid', 'ort_weighted', 'ort', 'HD_3_fix_norm']
     # plot_classification_errors(data_name, keys + ['exact_gauss'])
 
-    # y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_gaussian_RFF(a, 256, 0, scale))
-    # print(C, scale, np.linalg.norm(y_test_fit - y_test, ord = 1) / y_test.shape[0])
+    y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_gaussian_RFF(a, 256, 0, scale))
+    print(C, scale, np.mean(np.abs(y_test_fit != y_test)))
     # y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
-    # print(C, scale, np.linalg.norm(y_test_fit - y_test, ord = 1) / y_test.shape[0])
+    # print(C, scale, np.mean(np.abs(y_test_fit != y_test)))
 
 if __name__ == '__main__':
     main()
