@@ -56,15 +56,62 @@ def load_covtype():
 
     return X, y
 
+def load_bank():
+    # row = age;job;married/single/edu/
+    dictionaries = [{} for _ in range(21)]
+    dictionaries[3] = {'illiterate'         :0,
+                       'basic.4y'           :1,
+                       'basic.6y'           :2,
+                       'basic.9y'           :3,
+                       'unknown'            :4,
+                       'high.school'        :5,
+                       'professional.course':6, 
+                       'university.degree'  :7}
+    # dictionaries[9] = {'jan':1, 'feb':2, 'mar':3, 'apr':4, 'may':5, 'jun':6, 'jul':7, 'aug':8, 'sep':9, 'oct':10, 'nov':11, 'dec':12}
+    # dictionaries[10] = {'mon':1, 'tue':2, 'wed':3, 'thu': 4, 'fri': 5}
+
+    def format_row(row):
+        formatted_row = row[:]
+        
+        for idx, entry in enumerate(row):    
+            try:
+                formatted_row[idx] = float(entry)
+            except ValueError:
+                # entry is not numeric, insert it in dictionary if necessary and translate it 
+                if not entry in dictionaries[idx]:
+                    dictionaries[idx][entry] = len(dictionaries[idx])
+                formatted_row[idx] = dictionaries[idx][entry]
+
+        X_row = formatted_row[:-1]
+        y_row = formatted_row[-1]
+        return X_row, y_row
+    
+    with open('datasets/bank-additional-full.csv', 'rb') as f:
+        next(f)
+        X = []
+        y = []
+        reader = csv.reader(f, delimiter = ';', skipinitialspace=True)
+        for row in reader:
+            if len(row) > 0:
+                X_row, y_row = format_row(row)
+                X.append(X_row)
+                y.append(y_row)
+        
+        X = np.matrix(X)
+        y = np.array(y)
+    return X, y
+
 def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C):
     timing = False
     if timing:
         n_seeds = 1000
     else:
-        n_seeds = 50
+        n_seeds = 5
     
     if data_name == 'adult':
-        n_rffs = [4, 8, 12, 16, 20] + range(24, 256 + 1, 24)
+        n_rffs = [4, 8, 12, 16, 20] + range(24, 264 + 1, 24)
+    elif data_name == 'bank':
+        n_rffs = [4, 8, 12, 16, 20] + range(24, 264+1, 24)
 
     for algo_name, feature_gen_handle in algos.items():
         errors = defaultdict(list)
@@ -98,13 +145,16 @@ def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_tes
 
 def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = None):
     if data_name == 'adult':
-        n_rffs = [4, 244]
+        n_rffs = [4, 256]
+    elif data_name == 'bank':
+        n_rffs = [4, 256]
     
     errors = {}
     errors['runtimes'] = {}
     n_trials = 10
     start_time = time.clock()
-    for _ in range(n_trials):
+    for trial_count in range(n_trials):
+        print 'kernel: %d/%d' % (trial_count, n_trials)
         y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
     errors['runtimes'][n_rffs[0]] = (time.clock() - start_time) / n_trials
     errors['runtimes'][n_rffs[-1]] = errors['runtimes'][n_rffs[0]]
@@ -158,24 +208,30 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
 def main():
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-    data_name = ['adult', 'covtype'][0]
+    data_name = ['adult', 'covtype', 'bank'][2]
     if data_name == 'adult':
         X, y = load_adult()
     elif data_name == 'covtype':
         X, y = load_covtype()
+    elif data_name == 'bank':
+        X, y = load_bank()
     print(data_name, len(y), np.mean(y))
     X = whiten_data(X)[0]
-    np.random.seed(2)
+    np.random.seed(0)
     X_train, y_train, X_test, y_test = split_data(X, y, 0.8) 
-    
+
     if data_name == 'adult':
-        scale = 4.0
+        scale = 2.0
         C = 1.0
     elif data_name == 'covtype':
         scale = 20.0
         C = 1.0
+    elif data_name == 'bank':
+        scale = 10.0
+        C = 4.0
 
     keys = ['iid', 'ort', 'iid_fix_norm', 'ort_fix_norm', 'ort_weighted', 'HD_1', 'HD_3', 'HD_1_fix_norm', 'HD_3_fix_norm']
+    keys = ['iid','ort']
     algos = algos_generator(keys, scale = scale)
 
     # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = scale)
@@ -183,8 +239,10 @@ def main():
     # keys = ['iid', 'ort_weighted', 'ort', 'HD_3_fix_norm']
     # plot_classification_errors(data_name, keys + ['exact_gauss'])
 
-    y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_gaussian_RFF(a, 256, 0, scale))
-    print(C, scale, np.mean(np.abs(y_test_fit != y_test)))
+    # for C in [0.001, 0.003, 0.01, 0.03, 0.08, 0.2, 0.6, 1.0, 2.0, 4.0, 6.0, 8.0, 12.0, 16.0, 20.0, 24.0, 100.0, 300.0, 600.0, 1000.0]:
+    #     for scale in [0.01, 0.05, 0.1, 0.3, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 50.0, 100.0]:
+    # y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_gaussian_RFF(a, 256, 0, scale))
+    # print(C, scale, np.mean(np.abs(y_test_fit != y_test)))
     # y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
     # print(C, scale, np.mean(np.abs(y_test_fit != y_test)))
 
