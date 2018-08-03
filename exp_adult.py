@@ -184,6 +184,31 @@ def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_tes
             with open(filename, 'wb') as f:
                 pickle.dump(errors, f)
 
+def print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C):
+    # Kernel performance (from pickle archive)    
+    with open('output/%s_exact_gauss_svm.pk' % data_name, 'rb') as f:
+        data = pickle.load(f)
+    n_rff = [key for key in data.keys() if isinstance(key, numbers.Number) ][0]
+    print data
+    print '{0}&{1:.3}\t&[{1:.3}, {1:.3}]\t&{2:.6} \\\\'.format('exact SE kernel'.ljust(16), data[n_rff], data['runtimes'][n_rff])
+
+    n_seeds = 100
+    if data_name == 'adult':
+        n_rff = 216
+    elif data_name == 'bank':
+        n_rff = 216
+    else:
+        print 'missing implementation'
+
+    for algo_name, feature_gen_handle in algos.items():
+        errors = np.zeros(n_seeds)
+        start_time = time.clock()
+        for seed in range(n_seeds):
+            y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda raw_feature: feature_gen_handle(raw_feature, n_rff, seed))
+            errors[seed] = np.mean(np.abs(y_test_fit != y_test))
+        runtime = (time.clock() - start_time) / n_seeds
+        print('{}&{:.3}\t&[{:.3}, {:.3}]\t&{:.6}\\\\'.format(algo_name.replace('_', ' ').ljust(16), np.mean(errors), np.percentile(errors, 2.5), np.percentile(errors, 97.5), runtime))
+
 def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale):
     if data_name == 'adult':
         n_rffs = [4, 264]
@@ -281,7 +306,7 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
 def main():
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-    data_name = ['adult', 'bank', 'covtype', 'MNIST'][0]
+    data_name = ['adult', 'bank', 'covtype', 'MNIST'][1]
     if data_name == 'adult':
         X, y = load_adult()
     elif data_name == 'covtype':
@@ -319,21 +344,15 @@ def main():
         C = 1.0
 
     keys = ['iid', 'ort', 'iid_fix_norm', 'ort_fix_norm', 'ort_weighted', 'HD_1', 'HD_3', 'HD_1_fix_norm', 'HD_3_fix_norm']
-    keys = ['iid', 'ort', 'HD_1', 'HD_3', 'ort_weighted']
-    keys = ['iid', 'ort']
+    # keys = ['iid', 'ort', 'HD_1', 'HD_3', 'ort_weighted']
+    # keys = ['iid', 'ort']
     algos = algos_generator(keys, scale = scale)
 
-    # for algo_name, feature_gen_handle in algos.items():
-    #     print algo_name
-    #     phi = feature_gen_handle(X_train, 784, 0)
-    #     print phi, np.linalg.norm(phi)
-    #     y_test_fit1 = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: feature_gen_handle(a, 784, 0))
-    #     print y_test_fit1
-
     # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = scale)
-    classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
+    # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
     # plot_classification_errors(data_name, keys + ['exact_gauss']+['exact_gauss_(LibLinear)'])
     # plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification')
+    print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
 
     # for C in [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
     #     for scale in [1.0, 4.0, 10.0, 20.0, 40.0, 100.0]:
