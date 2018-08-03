@@ -11,7 +11,7 @@ def fit_from_feature_gen(X_train, y_train, X_pred, C, feature_gen):
     PhiX_train = feature_gen(X_train)
     PhiX_pred = feature_gen(X_pred)
     
-    clf = svm.LinearSVC(dual = (PhiX_train.shape[0] < PhiX_train.shape[1]), C = C, verbose = False)
+    clf = svm.LinearSVC(dual = (PhiX_train.shape[0] < PhiX_train.shape[1]), C = C, verbose = True)
     clf.fit(PhiX_train, y_train)
 
     return clf.predict(PhiX_pred)
