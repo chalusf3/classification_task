@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker
 from tensorflow.examples.tutorials.mnist import input_data
+import scipy.special as sp_sp
 
 import svm
 sys.path.append('/home/fc443/project/regression_task/')
@@ -143,11 +144,18 @@ def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_tes
     else:
         n_seeds = 5
     
+    polynomial_kernel = sum(['polyn' in k for k in algos.keys()])>0
+
     if data_name == 'adult':
-        n_rffs = [4, 8, 12, 16, 20] + range(24, 264 + 1, 24)
-        n_rffs = [216]
+        if polynomial_kernel:
+            n_rffs = [4,8,12,16,20] + range(24, 192 + 1, 12)
+        else:
+            n_rffs = [4, 8, 12, 16, 20] + range(24, 264 + 1, 24)
     elif data_name == 'bank':
-        n_rffs = [4, 8, 12, 16, 20] + range(24, 264+1, 24)
+        if polynomial_kernel:
+            n_rffs = [4,8,12,16,20] + range(24, 264 + 1, 24)
+        else:
+            n_rffs = [4, 8, 12, 16, 20] + range(24, 264+1, 24)
     elif data_name == 'MNIST':
         n_rffs = range(56, 1+784, 112) + range(896, 2017, 224)
 
@@ -209,33 +217,59 @@ def print_classification_error(data_name, algos, X_train, y_train, X_test, y_tes
         runtime = (time.clock() - start_time) / n_seeds
         print('{}&{:.3}\t&[{:.3}, {:.3}]\t&{:.6}\\\\'.format(algo_name.replace('_', ' ').ljust(16), np.mean(errors), np.percentile(errors, 2.5), np.percentile(errors, 97.5), runtime))
 
-def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale):
-    if data_name == 'adult':
-        n_rffs = [4, 264]
-    elif data_name == 'bank':
-        n_rffs = [4, 264]
+def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = None, degree = None, inhom_term = None):
+    if scale != None:
+        if data_name == 'adult':
+            n_rffs = [4, 264]
+        elif data_name == 'bank':
+            n_rffs = [4, 264]
 
-    errors = {}
-    errors['runtimes'] = {}
-    n_trials = 1
-    start_time = time.clock()
-    for trial_count in range(n_trials):
-        print 'kernel: %d/%d' % (trial_count, n_trials)
-        y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
-    errors['runtimes'][n_rffs[0]] = (time.clock() - start_time) / n_trials
-    errors['runtimes'][n_rffs[-1]] = errors['runtimes'][n_rffs[0]]
-    errors[n_rffs[0]] = np.mean(np.abs(y_test_fit != y_test))
-    errors[n_rffs[-1]] = errors[n_rffs[0]]
-    print 'SE kernel \t{} \t{:.4}sec'.format(errors[n_rffs[0]], errors['runtimes'][n_rffs[0]])
-    if n_trials > 1:
-        filename = 'output/timing/%s_exact_gauss_svm.pk' % data_name
-    else:
-        filename = 'output/%s_exact_gauss_svm.pk' % data_name
+        errors = {}
+        errors['runtimes'] = {}
+        n_trials = 5
+        start_time = time.clock()
+        for trial_count in range(n_trials):
+            print 'kernel: %d/%d' % (trial_count, n_trials)
+            y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
+        errors['runtimes'][n_rffs[0]] = (time.clock() - start_time) / n_trials
+        errors['runtimes'][n_rffs[-1]] = errors['runtimes'][n_rffs[0]]
+        errors[n_rffs[0]] = np.mean(np.abs(y_test_fit != y_test))
+        errors[n_rffs[-1]] = errors[n_rffs[0]]
+        print 'SE kernel \t{} \t{:.4}sec'.format(errors[n_rffs[0]], errors['runtimes'][n_rffs[0]])
+        if n_trials > 1:
+            filename = 'output/timing/%s_exact_gauss_svm.pk' % data_name
+        else:
+            filename = 'output/%s_exact_gauss_svm.pk' % data_name
 
-    with open(filename, 'wb+') as f:
-        pickle.dump(errors, f)
+        with open(filename, 'wb+') as f:
+            pickle.dump(errors, f)
+    
+    if degree != None:
+        if data_name == 'adult':
+            n_rfs = [4, 192]
+        elif data_name == 'bank':
+            n_rfs = [4, 264]
+        errors = {}
+        errors['runtimes'] = {}
+        n_trials = 5
+        start_time = time.clock()
+        for trial_count in range(n_trials):
+            print 'kernel: %d/%d' % (trial_count, n_trials)
+            y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.polynomial_sp_kernel(a, b, degree, inhom_term))
+        errors['runtimes'][n_rfs[0]] = (time.clock() - start_time) / n_trials
+        errors['runtimes'][n_rfs[-1]] = errors['runtimes'][n_rfs[0]]
+        errors[n_rfs[0]] = np.mean(np.abs(y_test_fit != y_test))
+        errors[n_rfs[-1]] = errors[n_rfs[0]]
+        print 'polyn kernel \t{} \t{:.4}sec'.format(errors[n_rfs[0]], errors['runtimes'][n_rfs[0]])
+        if n_trials > 1:
+            filename = 'output/timing/%s_polyn_svm.pk' % data_name
+        else:
+            filename = 'output/%s_polyn_svm.pk' % data_name
 
-    """
+        with open(filename, 'wb+') as f:
+            pickle.dump(errors, f)
+
+    """ # was a trial at using the gram matrix f the random feature vectors
     errors = {}
     errors['runtimes'] = {}
     errors[n_rffs[0]] = 0
@@ -259,15 +293,13 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
     ylim_ticks = [1,0]
     for algo_name in algo_names:
         try:
-            with open('output/%s_%s_svm.pk' % (data_name, algo_name), 'rb+') as f:
-                data = pickle.load(f)
-                print('Loading output/%s_%s_svm.pk' % (data_name, algo_name))
-        except IOError:
             with open('output/timing/%s_%s_svm.pk' % (data_name, algo_name), 'rb+') as f:
                 data = pickle.load(f)
                 print('Loading output/timing/%s_%s_svm.pk' % (data_name, algo_name))
-        # else:
-        #     raise IOError('No such file: %s_%s_svm.pk in output(/timing)' % (data_name, algo_name))
+        except IOError:
+            with open('output/%s_%s_svm.pk' % (data_name, algo_name), 'rb+') as f:
+                data = pickle.load(f)
+                print('Loading output/%s_%s_svm.pk' % (data_name, algo_name))
         x = filter(lambda k: isinstance(k, numbers.Number), data.keys())
         x.sort()
         means = np.array([np.mean(data[k]) for k in x])
@@ -281,17 +313,28 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
     plt.yscale('log')
 
     if data_name == 'adult':
+        dim = 15
         plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
         yticks_spacing = 1e-2 # space between y ticks
+        xticks_spacing = 24
     elif data_name == 'bank':
+        dim = 21
         plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.3f'))
         yticks_spacing = 4e-3
-    
+        xticks_spacing = 24
+    elif data_name == 'MNIST':
+        yticks_spacing = 1e-2
+        plt.gca().yaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.2f'))
+        xticks_spacing = 224
+
+    polynomial_kernel = sum(['polyn' in k for k in algo_names])
+    if polynomial_kernel:
+        plt.plot([sp_sp.comb(dim + 2.0, 2.0)] * 2, plt.gca().get_ylim(),'-', linewidth = 1)
+
     yticks_lim_integer = (1 + int(ylim_ticks[0] / yticks_spacing), int(ylim_ticks[1] / yticks_spacing)) # floor and ceil
     plt.minorticks_off()
     plt.yticks(yticks_spacing * np.arange(yticks_lim_integer[0], 1 + yticks_lim_integer[1]))
 
-    xticks_spacing = 24
     xticks_lim = [(int(min(plt.xticks()[0]) / xticks_spacing) + 1) * xticks_spacing, int(max(plt.xticks()[0]) / xticks_spacing) * xticks_spacing]
     xticks_lim[0] = max(xticks_lim[0], 0)
     plt.xticks(range(xticks_lim[0], xticks_lim[1]+1, xticks_spacing))
@@ -326,10 +369,14 @@ def main():
         X_test = X[32652:]
         y_test = y[32652:]
         scale = 6.0
+        degree = 2
+        inhom_term = 1.0
         C = 1.0
     elif data_name == 'bank':
         X_train, y_train, X_test, y_test = split_data(X, y, 0.8) 
         scale = 10.0
+        degree = 2
+        inhom_term = 35
         C = 4.0
     elif data_name == 'covtype':
         X_train, y_train, X_test, y_test = split_data(X, y, 0.8) 
@@ -343,16 +390,29 @@ def main():
         scale = int(0.5*28)
         C = 1.0
 
+
+    # SE kernel
     keys = ['iid', 'ort', 'iid_fix_norm', 'ort_fix_norm', 'ort_weighted', 'HD_1', 'HD_3', 'HD_1_fix_norm', 'HD_3_fix_norm']
-    # keys = ['iid', 'ort', 'HD_1', 'HD_3', 'ort_weighted']
+    # if data_name == 'MNIST':
+    #     keys = ['iid', 'ort', 'HD_1', 'HD_3', 'ort_weighted']
     # keys = ['iid', 'ort']
     algos = algos_generator(keys, scale = scale)
-
-    # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = scale)
+    # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = scale, degree = None)
     # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
-    # plot_classification_errors(data_name, keys + ['exact_gauss']+['exact_gauss_(LibLinear)'])
+    # plot_classification_errors(data_name, keys + ['exact_gauss'])
     # plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification')
-    print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
+    # print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
+    
+    keys = ['iid_polyn', 'iid_unit_polyn', 'ort_polyn', 'discrete_polyn', 'HD_polyn', 'HD_downsample_polyn']
+    algos = algos_generator(keys, degree = degree, inhom_term = inhom_term)
+    print('Dimension implicit feature space polynomial kernel = %d' % sp_sp.comb(X_train.shape[1] + int(inhom_term != 0) + degree, degree))
+    classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = None, degree = degree, inhom_term = inhom_term)
+    # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
+    # plot_classification_errors(data_name, keys)
+
+    # for n_rff in range(10,300,10):
+    #     y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_polynomial_sp_random_features(a, n_rff, 0, degree, inhom_term))
+    #     print(n_rff, degree, inhom_term, np.mean(np.abs(y_test_fit != y_test)))
 
     # for C in [0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]:
     #     for scale in [1.0, 4.0, 10.0, 20.0, 40.0, 100.0]:
@@ -365,6 +425,12 @@ def main():
     #     print(C, scale, n_rff, err)
     # y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
     # print(C, scale, np.mean(np.abs(y_test_fit != y_test)))
+
+    # y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
+    # y_test_fit1 = svm.fit_svm_from_kernel(kernels.gaussian_kernel(X_train, X_train, scale), \
+    #                                       y_train, 
+    #                                       kernels.gaussian_kernel(X_test, X_train, scale), C)
+    # print np.mean(np.abs(y_test_fit != y_test)), np.mean(np.abs(y_test != y_test_fit1)), np.mean(np.abs(y_test_fit != y_test_fit1))
 
 if __name__ == '__main__':
     main()
