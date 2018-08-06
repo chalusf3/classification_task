@@ -1,8 +1,8 @@
 from sklearn import svm
 import numpy as np
 
-def fit_svm_from_kernel(K, y_train, K_pred):
-    clf = svm.SVC(kernel = 'precomputed')
+def fit_svm_from_kernel(K, y_train, K_pred, C):
+    clf = svm.SVC(kernel = 'precomputed', C = C, verbose = True)
     
     clf.fit(K, y_train)
     return clf.predict(K_pred)
@@ -17,9 +17,7 @@ def fit_from_feature_gen(X_train, y_train, X_pred, C, feature_gen):
     return clf.predict(PhiX_pred)
 
 def fit_from_kernel_gen(X_train, y_train, X_pred, C, kernel_gen):
-    K = kernel_gen(X_train, X_train)
-    K_pred = kernel_gen(X_pred, X_train)
+    clf = svm.SVC(kernel = kernel_gen, C = C, verbose = True)
     
-    clf = svm.SVC(kernel = kernel_gen, C = C, verbose = False)
-    clf.fit(K, y_train)
-    return clf.predict(K_pred)
+    clf.fit(X_train, y_train)
+    return clf.predict(X_pred)
