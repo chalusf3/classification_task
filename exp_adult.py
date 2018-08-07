@@ -193,18 +193,32 @@ def classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_tes
                 pickle.dump(errors, f)
 
 def print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C):
-    # Kernel performance (from pickle archive)    
-    with open('output/%s_exact_gauss_svm.pk' % data_name, 'rb') as f:
-        data = pickle.load(f)
-    n_rff = [key for key in data.keys() if isinstance(key, numbers.Number) ][0]
-    print data
-    print '{0}&{1:.3}\t&[{1:.3}, {1:.3}]\t&{2:.6} \\\\'.format('exact SE kernel'.ljust(16), data[n_rff], data['runtimes'][n_rff])
+    polynomial_kernel = sum(['polyn' in key for key in algos.keys()]) > 0
+
+    if not polynomial_kernel:
+        # Kernel performance (from pickle archive)    
+        with open('output/timing/%s_exact_gauss_svm.pk' % data_name, 'rb') as f:
+            data = pickle.load(f)
+        n_rff = [key for key in data.keys() if isinstance(key, numbers.Number) ][0]
+        print '{0}&{1:.3}\t&[{1:.3}, {1:.3}]\t&{2:.6} \\\\'.format('exact SE kernel'.ljust(16), data[n_rff], data['runtimes'][n_rff])
+    else:
+        # Kernel performance (from pickle archive)    
+        with open('output/timing/%s_exact_polyn_svm.pk' % data_name, 'rb') as f:
+            data = pickle.load(f)
+        n_rff = [key for key in data.keys() if isinstance(key, numbers.Number) ][0]
+        print '{0}&{1:.3}\t&[{1:.3}, {1:.3}]\t&{2:.6} \\\\'.format('exact polyn kernel'.ljust(16), data[n_rff], data['runtimes'][n_rff])
 
     n_seeds = 100
     if data_name == 'adult':
-        n_rff = 216
+        if polynomial_kernel:
+            n_rff = 108
+        else:
+            n_rff = 216
     elif data_name == 'bank':
-        n_rff = 216
+        if polynomial_kernel:
+            n_rff = 192
+        else:
+            n_rff = 216
     else:
         print 'missing implementation'
 
@@ -226,10 +240,10 @@ def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, 
 
         errors = {}
         errors['runtimes'] = {}
-        n_trials = 5
+        n_trials = 1
         start_time = time.clock()
         for trial_count in range(n_trials):
-            print 'kernel: %d/%d' % (trial_count, n_trials)
+            print 'SE kernel: %d/%d' % (trial_count, n_trials)
             y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.gaussian_kernel(a, b, scale))
         errors['runtimes'][n_rffs[0]] = (time.clock() - start_time) / n_trials
         errors['runtimes'][n_rffs[-1]] = errors['runtimes'][n_rffs[0]]
@@ -254,7 +268,10 @@ def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, 
         n_trials = 5
         start_time = time.clock()
         for trial_count in range(n_trials):
-            print 'kernel: %d/%d' % (trial_count, n_trials)
+            print 'polyn kernel: %d/%d' % (trial_count, n_trials)
+            # y_test_fit = svm.fit_svm_from_kernel(kernels.polynomial_sp_kernel(X_train, X_train, degree, inhom_term), \
+            #                                     y_train, \
+            #                                     kernels.polynomial_sp_kernel(X_test, X_train, degree, inhom_term), C)
             y_test_fit = svm.fit_from_kernel_gen(X_train, y_train, X_test, C, lambda a, b: kernels.polynomial_sp_kernel(a, b, degree, inhom_term))
         errors['runtimes'][n_rfs[0]] = (time.clock() - start_time) / n_trials
         errors['runtimes'][n_rfs[-1]] = errors['runtimes'][n_rfs[0]]
@@ -262,9 +279,9 @@ def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, 
         errors[n_rfs[-1]] = errors[n_rfs[0]]
         print 'polyn kernel \t{} \t{:.4}sec'.format(errors[n_rfs[0]], errors['runtimes'][n_rfs[0]])
         if n_trials > 1:
-            filename = 'output/timing/%s_polyn_svm.pk' % data_name
+            filename = 'output/timing/%s_exact_polyn_svm.pk' % data_name
         else:
-            filename = 'output/%s_polyn_svm.pk' % data_name
+            filename = 'output/%s_exact_polyn_svm.pk' % data_name
 
         with open(filename, 'wb+') as f:
             pickle.dump(errors, f)
@@ -393,22 +410,24 @@ def main():
 
     # SE kernel
     keys = ['iid', 'ort', 'iid_fix_norm', 'ort_fix_norm', 'ort_weighted', 'HD_1', 'HD_3', 'HD_1_fix_norm', 'HD_3_fix_norm']
-    # if data_name == 'MNIST':
-    #     keys = ['iid', 'ort', 'HD_1', 'HD_3', 'ort_weighted']
-    # keys = ['iid', 'ort']
+    if data_name == 'MNIST':
+        keys = ['iid', 'ort', 'HD_1', 'HD_3', 'ort_weighted']
     algos = algos_generator(keys, scale = scale)
     # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = scale, degree = None)
     # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
-    # plot_classification_errors(data_name, keys + ['exact_gauss'])
-    # plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification')
+    # plot_classification_errors(data_name, keys + ['exact_gauss'], filename = 'classification_SE') #  + ['exact_gauss']
+    # plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification_SE')
     # print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
     
+    # polyn kernel
     keys = ['iid_polyn', 'iid_unit_polyn', 'ort_polyn', 'discrete_polyn', 'HD_polyn', 'HD_downsample_polyn']
     algos = algos_generator(keys, degree = degree, inhom_term = inhom_term)
     print('Dimension implicit feature space polynomial kernel = %d' % sp_sp.comb(X_train.shape[1] + int(inhom_term != 0) + degree, degree))
-    classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = None, degree = degree, inhom_term = inhom_term)
+    # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = None, degree = degree, inhom_term = inhom_term)
     # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
-    # plot_classification_errors(data_name, keys)
+    # plot_classification_errors(data_name, keys + ['exact_polyn'], filename = 'classification_polyn')
+    plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification_polyn')
+    print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
 
     # for n_rff in range(10,300,10):
     #     y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_polynomial_sp_random_features(a, n_rff, 0, degree, inhom_term))
