@@ -197,18 +197,25 @@ def print_classification_error(data_name, algos, X_train, y_train, X_test, y_tes
 
     if not polynomial_kernel:
         # Kernel performance (from pickle archive)    
-        with open('output/timing/%s_exact_gauss_svm.pk' % data_name, 'rb') as f:
-            data = pickle.load(f)
+        try:
+            with open('output/timing/%s_exact_gauss_svm.pk' % data_name, 'rb') as f:
+                data = pickle.load(f)
+        except IOError:
+            with open('output/%s_exact_gauss_svm.pk' % data_name, 'rb') as f:
+                data = pickle.load(f)
         n_rff = [key for key in data.keys() if isinstance(key, numbers.Number) ][0]
         print '{0}&{1:.3}\t&[{1:.3}, {1:.3}]\t&{2:.6} \\\\'.format('exact SE kernel'.ljust(16), data[n_rff], data['runtimes'][n_rff])
-    else:
+    elif data_name != 'MNIST':
         # Kernel performance (from pickle archive)    
         with open('output/timing/%s_exact_polyn_svm.pk' % data_name, 'rb') as f:
             data = pickle.load(f)
         n_rff = [key for key in data.keys() if isinstance(key, numbers.Number) ][0]
         print '{0}&{1:.3}\t&[{1:.3}, {1:.3}]\t&{2:.6} \\\\'.format('exact polyn kernel'.ljust(16), data[n_rff], data['runtimes'][n_rff])
 
-    n_seeds = 100
+    if data_name == 'MNIST':
+        n_seeds = 10
+    else:
+        n_seeds = 100
     if data_name == 'adult':
         if polynomial_kernel:
             n_rff = 108
@@ -219,6 +226,8 @@ def print_classification_error(data_name, algos, X_train, y_train, X_test, y_tes
             n_rff = 192
         else:
             n_rff = 216
+    elif data_name == 'MNIST':
+        n_rff = 2016
     else:
         print 'missing implementation'
 
@@ -237,6 +246,8 @@ def classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, 
             n_rffs = [4, 264]
         elif data_name == 'bank':
             n_rffs = [4, 264]
+        elif data_name == 'MNIST':
+            n_rffs = [56, 2016]
 
         errors = {}
         errors['runtimes'] = {}
@@ -366,7 +377,7 @@ def plot_classification_errors(data_name, algo_names, filename = 'classification
 def main():
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
-    data_name = ['adult', 'bank', 'covtype', 'MNIST'][1]
+    data_name = ['adult', 'bank', 'covtype', 'MNIST'][3]
     if data_name == 'adult':
         X, y = load_adult()
     elif data_name == 'covtype':
@@ -417,7 +428,7 @@ def main():
     # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
     # plot_classification_errors(data_name, keys + ['exact_gauss'], filename = 'classification_SE') #  + ['exact_gauss']
     # plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification_SE')
-    # print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
+    print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
     
     # polyn kernel
     keys = ['iid_polyn', 'iid_unit_polyn', 'ort_polyn', 'discrete_polyn', 'HD_polyn', 'HD_downsample_polyn']
@@ -426,8 +437,8 @@ def main():
     # classification_error_kernel(data_name, X_train, y_train, X_test, y_test, C, scale = None, degree = degree, inhom_term = inhom_term)
     # classification_error_n_rff(data_name, algos, X_train, y_train, X_test, y_test, C)
     # plot_classification_errors(data_name, keys + ['exact_polyn'], filename = 'classification_polyn')
-    plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification_polyn')
-    print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
+    # plot_runtimes(data_name, [key+'_svm' for key in keys], filename = 'classification_polyn')
+    # print_classification_error(data_name, algos, X_train, y_train, X_test, y_test, C)
 
     # for n_rff in range(10,300,10):
     #     y_test_fit = svm.fit_from_feature_gen(X_train, y_train, X_test, C, lambda a: kernels.iid_polynomial_sp_random_features(a, n_rff, 0, degree, inhom_term))

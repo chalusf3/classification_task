@@ -4,6 +4,7 @@ text_analysis.py
 # data
 *.eps
 output/
+output_trash/
 MNIST-data/*
 datasets/*
 
